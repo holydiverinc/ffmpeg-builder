@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFmpeg Command Builder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0e0a;
+    --bg2: #0f140f;
+    --bg3: #141a14;
+    --panel: #111611;
+    --border: #1e2e1e;
+    --green: #39ff14;
+    --green-dim: #1a7a0a;
+    --green-glow: rgba(57,255,20,0.15);
+    --green-mid: #22cc08;
+    --amber: #ffb800;
+    --red: #ff4444;
+    --text: #c8e8c0;
+    --text-dim: #5a7a52;
+    --text-bright: #e8ffe0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    padding: 20px;
+    background-image: 
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(57,255,20,0.015) 2px, rgba(57,255,20,0.015) 4px);
+  }
+
+  .scanline {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.03) 1px, rgba(0,0,0,0.03) 2px);
+  }
+
+  .container { max-width: 860px; margin: 0 auto; }
+
+  header {
+    border: 1px solid var(--green-dim);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    background: var(--panel);
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    animation: scan 3s linear infinite;
+  }
+  @keyframes scan { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+
+  .header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.r { background: #ff5555; }
+  .dot.y { background: #ffb800; }
+  .dot.g { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 22px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green);
+    letter-spacing: 2px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 12px; letter-spacing: 1px; }
+
+  .section {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 10px 16px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--green-mid);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+  }
+  .section-header:hover { background: #161e16; }
+  .section-header .arrow { transition: transform 0.2s; }
+  .section-header.collapsed .arrow { transform: rotate(-90deg); }
+
+  .section-body { padding: 14px 16px; }
+  .section-body.hidden { display: none; }
+
+  .field-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .field-row:last-child { margin-bottom: 0; }
+
+  label { font-size: 12px; color: var(--text-dim); min-width: 120px; }
+
+  input[type="text"], input[type="number"], select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+    flex: 1;
+    min-width: 160px;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--green-dim); box-shadow: 0 0 8px var(--green-glow); }
+  select option { background: var(--bg2); }
+
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cb-item {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .cb-item:hover { border-color: var(--green-dim); }
+  .cb-item.active {
+    border-color: var(--green);
+    background: var(--green-glow);
+    color: var(--green);
+  }
+  .cb-item input { display: none; }
+  .cb-dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 50%; }
+  .cb-item.active .cb-dot { background: var(--green); box-shadow: 0 0 4px var(--green); }
+
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+  .output-section {
+    border: 1px solid var(--green-dim);
+    background: var(--bg2);
+    margin-top: 16px;
+    position: relative;
+  }
+  .output-header {
+    padding: 8px 16px;
+    background: #0c180c;
+    border-bottom: 1px solid var(--green-dim);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 2px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .prompt-line {
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-bright);
+    word-break: break-all;
+    min-height: 60px;
+    position: relative;
+  }
+  .prompt-line::before {
+    content: '> ';
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .cmd-highlight { color: var(--amber); }
+  .cmd-flag { color: #7dd8ff; }
+  .cmd-value { color: var(--text-bright); }
+  .cmd-path { color: #ffaa55; }
+
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green-mid);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: var(--green-glow); border-color: var(--green); color: var(--green); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  .plain-cmd {
+    padding: 10px 16px;
+    background: #080e08;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+  .plain-cmd::before { content: '# plain text: '; color: #2a4a22; }
+
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; }
+  .tab {
+    padding: 8px 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    letter-spacing: 1px;
+    border-right: none;
+    transition: all 0.15s;
+  }
+  .tab:last-child { border-right: 1px solid var(--border); }
+  .tab.active { background: var(--panel); color: var(--green); border-bottom-color: var(--panel); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .info-box {
+    background: rgba(57,255,20,0.05);
+    border: 1px solid var(--green-dim);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .info-box strong { color: var(--green-mid); }
+
+  .time-helper { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .time-preset {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .time-preset:hover { border-color: var(--green-dim); color: var(--text); }
+  .ref-card {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .ref-card-header {
+    padding: 10px 16px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer;
+  }
+  .ref-card-header:hover { background: #161e16; }
+  .ref-title { font-size: 13px; color: var(--green-mid); letter-spacing: 1px; }
+  .ref-tag { font-size: 10px; padding: 2px 8px; border: 1px solid var(--green-dim); color: var(--text-dim); letter-spacing: 1px; }
+  .ref-body { padding: 14px 16px; }
+  .ref-desc { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; line-height: 1.6; }
+  .ref-example { background: var(--bg2); border: 1px solid var(--border); padding: 10px 14px; margin-bottom: 8px; position: relative; }
+  .ref-example-label { font-size: 10px; color: var(--text-dim); margin-bottom: 6px; letter-spacing: 1px; }
+  .ref-cmd { font-size: 12px; color: var(--text-bright); word-break: break-all; line-height: 1.6; }
+  .ref-copy-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 8px; cursor: pointer; transition: all 0.15s; }
+  .ref-copy-btn:hover { border-color: var(--green-dim); color: var(--green-mid); }
+  .ref-params { margin-top: 10px; }
+  .ref-param-row { display:flex; gap:10px; font-size:11px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .ref-param-row:last-child { border-bottom: none; }
+  .ref-param-name { color: var(--green-mid); min-width: 130px; }
+  .ref-param-desc { color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div class="container">
+
+  <header>
+    <div class="header-top">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <h1>// FFMPEG COMMAND BUILDER</h1>
+    </div>
+    <div class="subtitle">// visual constructor → command line output</div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('img2video')">IMG → VIDEO</div>
+    <div class="tab" onclick="switchTab('convert')">КОНВЕРТАЦИЯ</div>
+    <div class="tab" onclick="switchTab('trim')">ОБРЕЗКА</div>
+    <div class="tab" onclick="switchTab('merge')">СКЛЕЙКА</div>
+    <div class="tab" onclick="switchTab('audio')">АУДИО</div>
+    <div class="tab" onclick="switchTab('ref')">СПРАВОЧНИК</div>
+  </div>
+
+  <!-- TAB: IMG to VIDEO -->
+  <div id="tab-img2video" class="tab-content active">
+    <div class="info-box"><strong>Картинка → видео.</strong> Создаёт длинное видео из одного статичного изображения. Идеально для YouTube screensavers.</div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="arrow">▼</span> ВХОДНОЙ ФАЙЛ
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Путь к картинке</label>
+          <input type="text" id="iv_input" placeholder="X:\soft\videos\work\1.png" oninput="buildCmd('iv')">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="arrow">▼</span> ДЛИТЕЛЬНОСТЬ
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Секунды</label>
+          <input type="number" id="iv_duration" value="10800" min="1" oninput="buildCmd('iv')">
+        </div>
+        <div class="time-helper">
+          <button class="time-preset" onclick="setDuration(3600)">1 час</button>
+          <button class="time-preset" onclick="setDuration(7200)">2 часа</button>
+          <button class="time-preset" onclick="setDuration(10800)">3 часа</button>
+          <button class="time-preset" onclick="setDuration(18000)">5 часов</button>
+          <button class="time-preset" onclick="setDuration(36000)">10 часов</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="arrow">▼</span> РАЗРЕШЕНИЕ
+      </div>
+      <div class="section-body">
+        <div class="checkbox-group" id="iv_res_group">
+          <label class="cb-item" onclick="selectRes(this, 'iv')"><input type="radio" name="iv_res" value=""> <span class="cb-dot"></span> Оригинал</label>
+          <label class="cb-item active" onclick="selectRes(this, 'iv')"><input type="radio" name="iv_res" value="1920:1080" checked> <span class="cb-dot"></span> 1080p</label>
+          <label class="cb-item" onclick="selectRes(this, 'iv')"><input type="radio" name="iv_res" value="2560:1440"> <span class="cb-dot"></span> 1440p</label>
+          <label class="cb-item" onclick="selectRes(this, 'iv')"><input type="radio" name="iv_res" value="3840:2160"> <span class="cb-dot"></span> 4K</label>
+        </div>
+        <div class="hint">// Для картинок меньше 1080p растяжка до 4K ухудшит качество</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="arrow">▼</span> КОДЕК И КАЧЕСТВО
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Кодек</label>
+          <div class="checkbox-group" id="iv_codec_group">
+            <label class="cb-item active" onclick="selectCodec(this, 'iv')"><input type="radio" name="iv_codec" value="libx264" checked> <span class="cb-dot"></span> H.264 (универсальный)</label>
+            <label class="cb-item" onclick="selectCodec(this, 'iv')"><input type="radio" name="iv_codec" value="libx265"> <span class="cb-dot"></span> H.265 (меньше размер)</label>
+          </div>
+        </div>
+        <div class="field-row" style="margin-top:10px">
+          <label>CRF (качество)</label>
+          <input type="number" id="iv_crf" value="23" min="0" max="51" oninput="buildCmd('iv')">
+        </div>
+        <div class="hint">// CRF: 0=макс.качество, 51=мин. Для YouTube: 18–23</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="arrow">▼</span> ВЫХОДНОЙ ФАЙЛ
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Путь к файлу</label>
+          <input type="text" id="iv_output" placeholder="X:\soft\videos\work\output.mp4" oninput="buildCmd('iv')">
+        </div>
+      </div>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <span>▶ КОМАНДА</span>
+        <button class="copy-btn" onclick="copyCmd('iv_result_plain')">КОПИРОВАТЬ</button>
+      </div>
+      <div class="prompt-line" id="iv_result">ffmpeg -loop 1 -i <span class="cmd-path">[входной файл]</span> -t <span class="cmd-value">10800</span> -c:v <span class="cmd-highlight">libx264</span> -pix_fmt <span class="cmd-flag">yuv420p</span> -vf <span class="cmd-flag">scale=1920:1080</span> -crf <span class="cmd-value">23</span> <span class="cmd-path">[выходной файл]</span></div>
+      <div class="plain-cmd" id="iv_result_plain">ffmpeg -loop 1 -i [входной файл] -t 10800 -c:v libx264 -pix_fmt yuv420p -vf scale=1920:1080 -crf 23 [выходной файл]</div>
+    </div>
+  </div>
+
+  <!-- TAB: CONVERT -->
+  <div id="tab-convert" class="tab-content">
+    <div class="info-box"><strong>Конвертация форматов.</strong> Перекодирует видео из одного формата в другой.</div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ФАЙЛЫ</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Входной файл</label>
+          <input type="text" id="cv_input" placeholder="X:\videos\input.avi" oninput="buildCmd('cv')">
+        </div>
+        <div class="field-row">
+          <label>Выходной файл</label>
+          <input type="text" id="cv_output" placeholder="X:\videos\output.mp4" oninput="buildCmd('cv')">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ПАРАМЕТРЫ</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Кодек видео</label>
+          <div class="checkbox-group" id="cv_codec_group">
+            <label class="cb-item active" onclick="selectCodec(this, 'cv')"><input type="radio" name="cv_codec" value="libx264" checked><span class="cb-dot"></span>H.264</label>
+            <label class="cb-item" onclick="selectCodec(this, 'cv')"><input type="radio" name="cv_codec" value="libx265"><span class="cb-dot"></span>H.265</label>
+            <label class="cb-item" onclick="selectCodec(this, 'cv')"><input type="radio" name="cv_codec" value="copy"><span class="cb-dot"></span>Без перекодирования</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <span>▶ КОМАНДА</span>
+        <button class="copy-btn" onclick="copyCmd('cv_result_plain')">КОПИРОВАТЬ</button>
+      </div>
+      <div class="prompt-line" id="cv_result">ffmpeg -i <span class="cmd-path">[входной файл]</span> -c:v <span class="cmd-highlight">libx264</span> -pix_fmt <span class="cmd-flag">yuv420p</span> <span class="cmd-path">[выходной файл]</span></div>
+      <div class="plain-cmd" id="cv_result_plain">ffmpeg -i [входной файл] -c:v libx264 -pix_fmt yuv420p [выходной файл]</div>
+    </div>
+  </div>
+
+  <!-- TAB: TRIM -->
+  <div id="tab-trim" class="tab-content">
+    <div class="info-box"><strong>Обрезка видео.</strong> Вырезает нужный фрагмент без перекодирования (мгновенно).</div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ФАЙЛЫ И ВРЕМЯ</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Входной файл</label>
+          <input type="text" id="tr_input" placeholder="X:\videos\input.mp4" oninput="buildCmd('tr')">
+        </div>
+        <div class="field-row">
+          <label>Начало (hh:mm:ss)</label>
+          <input type="text" id="tr_start" placeholder="00:00:30" oninput="buildCmd('tr')">
+        </div>
+        <div class="field-row">
+          <label>Длина (hh:mm:ss)</label>
+          <input type="text" id="tr_length" placeholder="00:01:00" oninput="buildCmd('tr')">
+        </div>
+        <div class="field-row">
+          <label>Выходной файл</label>
+          <input type="text" id="tr_output" placeholder="X:\videos\clip.mp4" oninput="buildCmd('tr')">
+        </div>
+      </div>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <span>▶ КОМАНДА</span>
+        <button class="copy-btn" onclick="copyCmd('tr_result_plain')">КОПИРОВАТЬ</button>
+      </div>
+      <div class="prompt-line" id="tr_result">ffmpeg -i <span class="cmd-path">[входной файл]</span> -ss <span class="cmd-value">00:00:30</span> -t <span class="cmd-value">00:01:00</span> -c copy <span class="cmd-path">[выходной файл]</span></div>
+      <div class="plain-cmd" id="tr_result_plain">ffmpeg -i [входной файл] -ss 00:00:30 -t 00:01:00 -c copy [выходной файл]</div>
+    </div>
+  </div>
+
+  <!-- TAB: MERGE -->
+  <div id="tab-merge" class="tab-content">
+    <div class="info-box"><strong>Склейка видео.</strong> Объединяет несколько видео в одно. Сначала нужно создать текстовый файл list.txt с путями.</div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ПАРАМЕТРЫ</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Файл со списком</label>
+          <input type="text" id="mg_list" placeholder="X:\videos\list.txt" oninput="buildCmd('mg')">
+        </div>
+        <div class="field-row">
+          <label>Выходной файл</label>
+          <input type="text" id="mg_output" placeholder="X:\videos\merged.mp4" oninput="buildCmd('mg')">
+        </div>
+        <div class="hint">// Формат list.txt: каждая строка → file 'X:\путь\к\файлу.mp4'</div>
+      </div>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <span>▶ КОМАНДА</span>
+        <button class="copy-btn" onclick="copyCmd('mg_result_plain')">КОПИРОВАТЬ</button>
+      </div>
+      <div class="prompt-line" id="mg_result">ffmpeg -f concat -safe 0 -i <span class="cmd-path">[list.txt]</span> -c copy <span class="cmd-path">[выходной файл]</span></div>
+      <div class="plain-cmd" id="mg_result_plain">ffmpeg -f concat -safe 0 -i [list.txt] -c copy [выходной файл]</div>
+    </div>
+  </div>
+
+  <!-- TAB: AUDIO -->
+  <div id="tab-audio" class="tab-content">
+    <div class="info-box"><strong>Работа с аудио.</strong> Извлечение аудио из видео или добавление аудио к видео.</div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> РЕЖИМ</div>
+      <div class="section-body">
+        <div class="checkbox-group" id="au_mode_group">
+          <label class="cb-item active" onclick="selectAudioMode(this, 'extract')"><span class="cb-dot"></span> Извлечь аудио</label>
+          <label class="cb-item" onclick="selectAudioMode(this, 'add')"><span class="cb-dot"></span> Добавить аудио к видео</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="au_extract_fields" class="section">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ФАЙЛЫ (ИЗВЛЕЧЕНИЕ)</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Видео</label>
+          <input type="text" id="au_video_in" placeholder="X:\videos\input.mp4" oninput="buildCmd('au')">
+        </div>
+        <div class="field-row">
+          <label>Выходной .mp3</label>
+          <input type="text" id="au_audio_out" placeholder="X:\videos\audio.mp3" oninput="buildCmd('au')">
+        </div>
+      </div>
+    </div>
+
+    <div id="au_add_fields" class="section" style="display:none">
+      <div class="section-header" onclick="toggleSection(this)"><span class="arrow">▼</span> ФАЙЛЫ (ДОБАВЛЕНИЕ)</div>
+      <div class="section-body">
+        <div class="field-row">
+          <label>Видео</label>
+          <input type="text" id="au_vid" placeholder="X:\videos\video.mp4" oninput="buildCmd('au')">
+        </div>
+        <div class="field-row">
+          <label>Аудио</label>
+          <input type="text" id="au_aud" placeholder="X:\videos\music.mp3" oninput="buildCmd('au')">
+        </div>
+        <div class="field-row">
+          <label>Результат</label>
+          <input type="text" id="au_combined" placeholder="X:\videos\result.mp4" oninput="buildCmd('au')">
+        </div>
+      </div>
+    </div>
+
+    <div class="output-section">
+      <div class="output-header">
+        <span>▶ КОМАНДА</span>
+        <button class="copy-btn" onclick="copyCmd('au_result_plain')">КОПИРОВАТЬ</button>
+      </div>
+      <div class="prompt-line" id="au_result">ffmpeg -i <span class="cmd-path">[видео]</span> -vn -acodec <span class="cmd-highlight">mp3</span> <span class="cmd-path">[аудио.mp3]</span></div>
+      <div class="plain-cmd" id="au_result_plain">ffmpeg -i [видео] -vn -acodec mp3 [аудио.mp3]</div>
+    </div>
+  </div>
+
+  <!-- TAB: REFERENCE -->
+  <div id="tab-ref" class="tab-content">
+    <div class="info-box"><strong>Справочник команд FFmpeg.</strong> Все основные команды с описанием и примерами.</div>
+
+    <div id="ref-search-row" style="margin-bottom:12px; display:flex; gap:10px; align-items:center;">
+      <input type="text" id="ref_search" placeholder="Поиск по командам..." style="flex:1; min-width:0;" oninput="filterRef()">
+    </div>
+
+    <div id="ref_list"></div>
+  </div>
+
+
+let state = {
+  iv: { res: '1920:1080', codec: 'libx264' },
+  cv: { codec: 'libx264' },
+  au: { mode: 'extract' }
+};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['img2video','convert','trim','merge','audio','ref'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function toggleSection(header) {
+  header.classList.toggle('collapsed');
+  header.nextElementSibling.classList.toggle('hidden');
+}
+
+function getVal(id, fallback='') {
+  const el = document.getElementById(id);
+  return el ? (el.value.trim() || fallback) : fallback;
+}
+
+function setHTML(id, html) { const el=document.getElementById(id); if(el) el.innerHTML = html; }
+function setTxt(id, txt) { const el=document.getElementById(id); if(el) el.textContent = txt; }
+
+function p(val, fb) { return val || fb; }
+function pathSpan(v, fb) { return `<span class="cmd-path">${p(v,fb)}</span>`; }
+function valSpan(v) { return `<span class="cmd-value">${v}</span>`; }
+function flagSpan(v) { return `<span class="cmd-flag">${v}</span>`; }
+function hlSpan(v) { return `<span class="cmd-highlight">${v}</span>`; }
+
+function buildCmd(tab) {
+  if(tab==='iv') {
+    const input = getVal('iv_input','[входной файл]');
+    const dur = getVal('iv_duration','10800');
+    const codec = state.iv.codec || 'libx264';
+    const crf = getVal('iv_crf','23');
+    const output = getVal('iv_output','[выходной файл]');
+    const res = state.iv.res;
+    const scaleFlag = res ? ` -vf ${flagSpan('scale='+res)}` : '';
+    const scalePlain = res ? ` -vf scale=${res}` : '';
+    const html = `ffmpeg -loop 1 -i ${pathSpan(getVal('iv_input'),'[входной файл]')} -t ${valSpan(dur)} -c:v ${hlSpan(codec)} -pix_fmt ${flagSpan('yuv420p')}${scaleFlag} -crf ${valSpan(crf)} ${pathSpan(getVal('iv_output'),'[выходной файл]')}`;
+    const plain = `ffmpeg -loop 1 -i ${input} -t ${dur} -c:v ${codec} -pix_fmt yuv420p${scalePlain} -crf ${crf} ${output}`;
+    setHTML('iv_result', html);
+    setTxt('iv_result_plain', plain);
+  }
+  if(tab==='cv') {
+    const input = getVal('cv_input','[входной файл]');
+    const output = getVal('cv_output','[выходной файл]');
+    const codec = state.cv.codec || 'libx264';
+    const codecPart = codec === 'copy' ? '-c copy' : `-c:v ${codec} -pix_fmt yuv420p`;
+    const html = `ffmpeg -i ${pathSpan(getVal('cv_input'),'[входной файл]')} ${hlSpan(codecPart)} ${pathSpan(getVal('cv_output'),'[выходной файл]')}`;
+    const plain = `ffmpeg -i ${input} ${codecPart} ${output}`;
+    setHTML('cv_result', html);
+    setTxt('cv_result_plain', plain);
+  }
+  if(tab==='tr') {
+    const input = getVal('tr_input','[входной файл]');
+    const start = getVal('tr_start','00:00:30');
+    const len = getVal('tr_length','00:01:00');
+    const output = getVal('tr_output','[выходной файл]');
+    const html = `ffmpeg -i ${pathSpan(getVal('tr_input'),'[входной файл]')} -ss ${valSpan(start)} -t ${valSpan(len)} -c copy ${pathSpan(getVal('tr_output'),'[выходной файл]')}`;
+    const plain = `ffmpeg -i ${input} -ss ${start} -t ${len} -c copy ${output}`;
+    setHTML('tr_result', html);
+    setTxt('tr_result_plain', plain);
+  }
+  if(tab==='mg') {
+    const list = getVal('mg_list','[list.txt]');
+    const output = getVal('mg_output','[выходной файл]');
+    const html = `ffmpeg -f concat -safe 0 -i ${pathSpan(getVal('mg_list'),'[list.txt]')} -c copy ${pathSpan(getVal('mg_output'),'[выходной файл]')}`;
+    const plain = `ffmpeg -f concat -safe 0 -i ${list} -c copy ${output}`;
+    setHTML('mg_result', html);
+    setTxt('mg_result_plain', plain);
+  }
+  if(tab==='au') {
+    const mode = state.au.mode;
+    let html, plain;
+    if(mode==='extract') {
+      const vid = getVal('au_video_in','[видео]');
+      const aud = getVal('au_audio_out','[аудио.mp3]');
+      html = `ffmpeg -i ${pathSpan(getVal('au_video_in'),'[видео]')} -vn -acodec ${hlSpan('mp3')} ${pathSpan(getVal('au_audio_out'),'[аудио.mp3]')}`;
+      plain = `ffmpeg -i ${vid} -vn -acodec mp3 ${aud}`;
+    } else {
+      const vid = getVal('au_vid','[видео]');
+      const aud = getVal('au_aud','[аудио]');
+      const out = getVal('au_combined','[результат]');
+      html = `ffmpeg -i ${pathSpan(getVal('au_vid'),'[видео]')} -i ${pathSpan(getVal('au_aud'),'[аудио]')} -c:v copy -c:a ${hlSpan('aac')} -shortest ${pathSpan(getVal('au_combined'),'[результат]')}`;
+      plain = `ffmpeg -i ${vid} -i ${aud} -c:v copy -c:a aac -shortest ${out}`;
+    }
+    setHTML('au_result', html);
+    setTxt('au_result_plain', plain);
+  }
+}
+
+function selectRes(el, prefix) {
+  document.querySelectorAll(`#${prefix}_res_group .cb-item`).forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  state[prefix].res = el.querySelector('input').value;
+  buildCmd(prefix);
+}
+
+function selectCodec(el, prefix) {
+  document.querySelectorAll(`#${prefix}_codec_group .cb-item`).forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  state[prefix].codec = el.querySelector('input').value;
+  buildCmd(prefix);
+}
+
+function selectAudioMode(el, mode) {
+  document.querySelectorAll('#au_mode_group .cb-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  state.au.mode = mode;
+  document.getElementById('au_extract_fields').style.display = mode==='extract' ? '' : 'none';
+  document.getElementById('au_add_fields').style.display = mode==='add' ? '' : 'none';
+  buildCmd('au');
+}
+
+function setDuration(secs) {
+  document.getElementById('iv_duration').value = secs;
+  buildCmd('iv');
+}
+
+function copyCmd(id) {
+  const txt = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btns = document.querySelectorAll('.copy-btn');
+    btns.forEach(b => {
+      if(b.getAttribute('onclick').includes(id)) {
+        b.textContent = 'СКОПИРОВАНО ✓';
+        b.classList.add('copied');
+        setTimeout(() => { b.textContent = 'КОПИРОВАТЬ'; b.classList.remove('copied'); }, 2000);
+      }
+    });
+  });
+}
+
+// init
+buildCmd('iv');
+buildCmd('cv');
+buildCmd('tr');
+buildCmd('mg');
+buildCmd('au');
+</script>
+</body>
+</html>

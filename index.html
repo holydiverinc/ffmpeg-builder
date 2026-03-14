@@ -553,12 +553,6 @@
 
   <!-- TAB: REFERENCE -->
   <div id="tab-ref" class="tab-content">
-    <div class="info-box"><strong>Справочник команд FFmpeg.</strong> Все основные команды с описанием и примерами.</div>
-
-    <div id="ref-search-row" style="margin-bottom:12px; display:flex; gap:10px; align-items:center;">
-      <input type="text" id="ref_search" placeholder="Поиск по командам..." style="flex:1; min-width:0;" oninput="filterRef()">
-    </div>
-
     <div id="ref_list"></div>
   </div>
 
@@ -709,6 +703,51 @@ buildCmd('cv');
 buildCmd('tr');
 buildCmd('mg');
 buildCmd('au');
+
+// REFERENCE DATA
+const refData = [
+  { title: 'Картинка → Видео', tag: 'IMG → VIDEO', desc: 'Создаёт видео из статичной картинки. -loop 1 зацикливает изображение, -t задаёт длину в секундах.', cmd: 'ffmpeg -loop 1 -i input.png -t 10800 -c:v libx264 -pix_fmt yuv420p -vf scale=1920:1080 -crf 23 output.mp4' },
+  { title: 'Конвертация формата', tag: 'КОНВЕРТАЦИЯ', desc: 'Перекодирует видео из одного формата в другой. -c copy меняет контейнер без перекодирования — мгновенно.', cmd: 'ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p output.mp4' },
+  { title: 'Конвертация без перекодирования', tag: 'КОНВЕРТАЦИЯ', desc: 'Меняет контейнер (например MKV→MP4) не трогая кодек. Работает мгновенно.', cmd: 'ffmpeg -i input.mkv -c copy output.mp4' },
+  { title: 'Обрезка видео', tag: 'ОБРЕЗКА', desc: 'Вырезает фрагмент. -ss начало, -t длина. С -c copy работает без перекодирования — очень быстро.', cmd: 'ffmpeg -i input.mp4 -ss 00:00:30 -t 00:01:00 -c copy output.mp4' },
+  { title: 'Склейка видео', tag: 'СКЛЕЙКА', desc: 'Объединяет несколько видео. Нужен list.txt где каждая строка: file \'путь\\к\\файлу.mp4\'', cmd: 'ffmpeg -f concat -safe 0 -i list.txt -c copy output.mp4' },
+  { title: 'Извлечь аудио из видео', tag: 'АУДИО', desc: 'Извлекает аудиодорожку из видео. -vn отключает видеопоток.', cmd: 'ffmpeg -i input.mp4 -vn -acodec mp3 output.mp3' },
+  { title: 'Добавить аудио к видео', tag: 'АУДИО', desc: 'Накладывает аудиофайл на видео. -shortest останавливается по короткому файлу.', cmd: 'ffmpeg -i video.mp4 -i music.mp3 -c:v copy -c:a aac -shortest output.mp4' },
+  { title: 'Изменить разрешение', tag: 'МАСШТАБ', desc: 'Масштабирует видео. -1 автоматически сохраняет пропорции по второй стороне.', cmd: 'ffmpeg -i input.mp4 -vf scale=1920:1080 output.mp4' },
+  { title: 'Сжать видео', tag: 'СЖАТИЕ', desc: 'Уменьшает размер файла. CRF: 18=отличное, 23=хорошее, 28=среднее, 35=плохое качество.', cmd: 'ffmpeg -i input.mp4 -c:v libx264 -crf 28 output.mp4' },
+  { title: 'Изменить скорость', tag: 'ЭФФЕКТЫ', desc: 'setpts=0.5 ускоряет вдвое, setpts=2.0 замедляет вдвое. atempo меняет скорость аудио.', cmd: 'ffmpeg -i input.mp4 -vf setpts=0.5*PTS -af atempo=2.0 output.mp4' },
+  { title: 'Информация о файле', tag: 'УТИЛИТА', desc: 'Показывает кодек, разрешение, битрейт, длительность. Просто укажи файл после -i.', cmd: 'ffmpeg -i input.mp4' },
+];
+
+function renderRef(data) {
+  const container = document.getElementById('ref_list');
+  if (!container) return;
+  container.innerHTML = data.map(item => `
+    <div style="border:1px solid var(--border); background:var(--panel); margin-bottom:8px; overflow:hidden;">
+      <div style="padding:8px 16px; background:var(--bg3); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:13px; color:var(--green-mid); letter-spacing:1px;">${item.title}</span>
+        <span style="font-size:10px; padding:2px 8px; border:1px solid var(--green-dim); color:var(--text-dim); letter-spacing:1px;">${item.tag}</span>
+      </div>
+      <div style="padding:12px 16px;">
+        <div style="font-size:12px; color:var(--text-dim); margin-bottom:10px; line-height:1.6;">${item.desc}</div>
+        <div style="background:var(--bg2); border:1px solid var(--border); padding:10px 14px; position:relative;">
+          <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px; letter-spacing:1px;">// пример</div>
+          <div style="font-size:12px; color:var(--text-bright); word-break:break-all; padding-right:70px;">${item.cmd}</div>
+          <button onclick="copyRefCmd(this,'${item.cmd.replace(/'/g, "\\'")}');" style="position:absolute; top:8px; right:8px; background:transparent; border:1px solid var(--border); color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:10px; padding:2px 8px; cursor:pointer;">COPY</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function copyRefCmd(btn, cmd) {
+  navigator.clipboard.writeText(cmd).then(() => {
+    btn.textContent = '✓ OK';
+    setTimeout(() => btn.textContent = 'COPY', 2000);
+  });
+}
+
+renderRef(refData);
 </script>
 </body>
 </html>
